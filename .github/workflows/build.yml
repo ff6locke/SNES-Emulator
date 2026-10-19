@@ -18,5 +18,5 @@ jobs:
       - run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: NesTV-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: SNESPocket-Android-Project
+          path: app/build/outputs/apk/debug/snesandroid.apk
