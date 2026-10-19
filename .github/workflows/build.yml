@@ -1,4 +1,4 @@
-9name: Unzip and Build APK
+name: Unzip and Build APK
 
 on:
   push:
@@ -16,9 +16,7 @@ jobs:
     - name: Extract Project ZIP
       run: unzip SNESPocket-Android-Project.zip -d . 
 
-    # --- NEW STEP TO FIX YOUR ERROR ---
     - name: Upgrade Gradle Wrapper to 8.9
-      # This navigates to your specific project folder and updates Gradle
       run: |
         cd project/SNESPocket
         ./gradlew wrapper --gradle-version 8.9 --distribution-type all
@@ -36,7 +34,6 @@ jobs:
       run: chmod +x project/SNESPocket/gradlew
 
     - name: Build Debug APK
-      # This runs the build command inside your specific project directory
       run: |
         cd project/SNESPocket
         ./gradlew assembleDebug
@@ -45,4 +42,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: debug-apk
-        path: "**/build/outputs/apk/debug/SNESAndroidPocket.apk
+        path: "**/build/outputs/apk/debug/*.apk" # Changed to wildcard to ensure it catches the generated APK regardless of name adjustments
