@@ -16,9 +16,18 @@ jobs:
     - name: Extract Project ZIP
       run: unzip SNESPocket-Android-Project.zip -d . 
 
+    # --- AUTOMATICALLY FIND AND SAVE THE CORRECT DIRECTORY ---
+    - name: Find Project Directory
+      id: find_dir
+      run: |
+        # Search for the folder containing gradlew and save it
+        GRADLE_DIR=$(dirname $(find . -name gradlew | head -n 1))
+        echo "PROJECT_DIR=$GRADLE_DIR" >> $GITHUB_ENV
+        echo "Found Android project at: $GRADLE_DIR"
+
     - name: Upgrade Gradle Wrapper to 8.9
       run: |
-        cd project/SNESPocket
+        cd ${{ env.PROJECT_DIR }}
         ./gradlew wrapper --gradle-version 8.9 --distribution-type all
 
     - name: Set up JDK 17
@@ -31,15 +40,15 @@ jobs:
       uses: gradle/actions/setup-gradle@v3
 
     - name: Grant Execute Permission to Gradlew
-      run: chmod +x project/SNESPocket/gradlew
+      run: chmod +x ${{ env.PROJECT_DIR }}/gradlew
 
     - name: Build Debug APK
       run: |
-        cd project/SNESPocket
+        cd ${{ env.PROJECT_DIR }}
         ./gradlew assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: debug-apk
-        path: "**/build/outputs/apk/debug/*.apk" # Changed to wildcard to ensure it catches the generated APK regardless of name adjustments
+        path: "**/build/outputs/apk/debug/*.apk"
