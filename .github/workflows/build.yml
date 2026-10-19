@@ -16,35 +16,21 @@ jobs:
     - name: Extract Project ZIP
       run: unzip SNESPocket-Android-Project.zip -d . 
 
-    # --- NEW: LIST FILES TO DIAGNOSE STRUCTURE IF IT FAILS ---
-    - name: Debug List Extracted Files
-      run: |
-        echo "=== Listing all extracted directories and files ==="
-        find . -maxdepth 3 -not -path '*/.*'
-
-    # --- IMPROVED DYNAMIC DIRECTORY FINDER ---
-    - name: Find Project Directory
+    # --- UPDATED: SEARCHES FOR SETTINGS.GRADLE INSTEAD OF BUILD.GRADLE ---
+    - name: Find Root Project Directory
       id: find_dir
       run: |
-        # Look for the folder containing build.gradle first, then fallback to any gradle file
-        GRADLE_BUILD_FILE=$(find . -name "build.gradle" -o -name "build.gradle.kts" | head -n 1)
+        # Search for the directory containing settings.gradle (the true root)
+        SETTINGS_FILE=$(find . -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
         
-        if [ -z "$GRADLE_BUILD_FILE" ]; then
-          echo "ERROR: Could not find any build.gradle file in the ZIP!"
+        if [ -z "$SETTINGS_FILE" ]; then
+          echo "ERROR: Could not find settings.gradle in the ZIP!"
           exit 1
         fi
         
-        GRADLE_DIR=$(dirname "$GRADLE_BUILD_FILE")
-        
-        # If gradlew doesn't exist in that folder, generate it
-        if [ ! -f "$GRADLE_DIR/gradlew" ]; then
-          echo "gradlew not found. Creating a generic wrapper structure..."
-          cd "$GRADLE_DIR"
-          npm install -g gradle-wrapper-generator || true # fallback alternative
-        fi
-
-        echo "PROJECT_DIR=$GRADLE_DIR" >> $GITHUB_ENV
-        echo "Found Android project folder at: $GRADLE_DIR"
+        GRADLE_ROOT=$(dirname "$SETTINGS_FILE")
+        echo "PROJECT_DIR=$GRADLE_ROOT" >> $GITHUB_ENV
+        echo "Found True Android Root at: $GRADLE_ROOT"
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -55,12 +41,8 @@ jobs:
     - name: Upgrade or Create Gradle Wrapper to 8.9
       run: |
         cd ${{ env.PROJECT_DIR }}
-        # If gradlew still isn't available, use global gradle to build the wrapper
-        if [ ! -f ./gradlew ]; then
-          gradle wrapper --gradle-version 8.9 --distribution-type all
-        else
-          ./gradlew wrapper --gradle-version 8.9 --distribution-type all
-        fi
+        # Run wrapper update command from the true root directory
+        gradle wrapper --gradle-version 8.9 --distribution-type all
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
