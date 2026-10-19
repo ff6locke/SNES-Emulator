@@ -1,4 +1,4 @@
-name: Unzip and Build APK
+9name: Unzip and Build APK
 
 on:
   push:
@@ -45,4 +45,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: debug-apk
-        path: "**/build/outputs/apk/debug/*.apk
+        path: "**/build/outputs/apk/debug/SNESAndroidPocket.apk
