@@ -1,28 +1,48 @@
-name: Build APK
+name: Unzip and Build APK
+
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main" ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Unzip project
-        run: unzip -q -o SNESPocket-Android-Project.zip -d project
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.7"
-      - name: Build
-        run: |
-          DIR=$(dirname "$(find project -name settings.gradle.kts | head -1)")
-          gradle -p "$DIR" assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SNESAndroidPocket-apk
-          path: project/**/build/outputs/apk/debug/SNESAndroidPocket.apk
 
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Extract Project ZIP
+      run: unzip SNESPocket-Android-Project.zip -d . 
+
+    # --- NEW STEP TO FIX YOUR ERROR ---
+    - name: Upgrade Gradle Wrapper to 8.9
+      # This navigates to your specific project folder and updates Gradle
+      run: |
+        cd project/SNESPocket
+        ./gradlew wrapper --gradle-version 8.9 --distribution-type all
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Grant Execute Permission to Gradlew
+      run: chmod +x project/SNESPocket/gradlew
+
+    - name: Build Debug APK
+      # This runs the build command inside your specific project directory
+      run: |
+        cd project/SNESPocket
+        ./gradlew assembleDebug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-apk
+        path: "**/build/outputs/apk/debug/*.apk
