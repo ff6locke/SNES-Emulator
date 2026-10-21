@@ -3,10 +3,12 @@ name: Build SNES Pocket Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
     paths:
-      - "*.zip"
+      - "SNESPocket-Android-Project.zip"
       - ".github/workflows/build.yml"
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -15,20 +17,25 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract Android project
         run: |
-          set -e
-          ZIP_FILE=$(ls -1 *.zip | head -n 1)
-          echo "Extracting $ZIP_FILE"
-          unzip -o "$ZIP_FILE" -d extracted
-          PROJECT_DIR=$(find extracted -maxdepth 3 -type f \( -name "settings.gradle.kts" -o -name "settings.gradle" \) -printf '%h\n' | head -n 1)
+          mkdir -p extracted
+          unzip -o SNESPocket-Android-Project.zip -d extracted
+
+          PROJECT_DIR="$(find extracted -name settings.gradle.kts -printf '%h\n' | head -n 1)"
+
           if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: No Gradle settings file found in extracted zip"
+            echo "ERROR: Could not find settings.gradle.kts in the ZIP."
+            echo "ZIP contents:"
+            unzip -l SNESPocket-Android-Project.zip
             exit 1
           fi
+
+          echo "Project found at: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Detected project directory: $PROJECT_DIR"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -36,66 +43,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
-      - name: Patch Gradle JVM targets
-        run: |
-          set -e
-          FILE=app/build.gradle.kts
-          if [ ! -f "$FILE" ]; then
-            echo "ERROR: $FILE not found"
-            exit 1
-          fi
-          # Remove any existing compileOptions / kotlinOptions blocks that cause the mismatch
-          python3 - "$FILE" <<'PY'
-          import re, sys
-          path = sys.argv[1]
-          src = open(path).read()
-
-          # Strip existing compileOptions { ... } and kotlinOptions { ... } blocks
-          src = re.sub(r'\n\s*compileOptions\s*\{[^}]*\}', '', src, flags=re.S)
-          src = re.sub(r'\n\s*kotlinOptions\s*\{[^}]*\}', '', src, flags=re.S)
-
-          inject = '''
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
-          '''
-
-          # Insert right after the first `android {` line
-          m = re.search(r'android\s*\{', src)
-          if not m:
-              print("ERROR: could not find android { block", file=sys.stderr)
-              sys.exit(1)
-          idx = m.end()
-          src = src[:idx] + inject + src[idx:]
-
-          open(path, 'w').write(src)
-          print("Patched", path)
-          PY
-          echo "----- patched file (head) -----"
-          sed -n '1,60p' "$FILE"
-        working-directory: ${{ env.PROJECT_DIR }}
-
-      - name: Write local.properties
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
 
       - name: Build debug APK
-        run: gradle assembleDebug
         working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -103,3 +63,24 @@ jobs:
           name: SNES-Pocket-Android-APK
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Save extracted source files
+        run: |
+          mkdir -p source-files
+          cp -a "$PROJECT_DIR"/. source-files/
+
+          if [ -f README.md ]; then
+            echo "README already exists."
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add source-files/
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Add extracted Android project source files"
+            git push
+          else
+            echo "No new source files to commit."
+          If
