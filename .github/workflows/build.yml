@@ -22,7 +22,6 @@ jobs:
           ZIP_FILE=$(ls -1 *.zip | head -n 1)
           echo "Extracting $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d extracted
-          # Find the directory that contains settings.gradle(.kts)
           PROJECT_DIR=$(find extracted -maxdepth 3 -type f \( -name "settings.gradle.kts" -o -name "settings.gradle" \) -printf '%h\n' | head -n 1)
           if [ -z "$PROJECT_DIR" ]; then
             echo "ERROR: No Gradle settings file found in extracted zip"
@@ -30,7 +29,6 @@ jobs:
           fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Detected project directory: $PROJECT_DIR"
-          ls -la "$PROJECT_DIR"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -47,6 +45,49 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+
+      - name: Patch Gradle JVM targets
+        run: |
+          set -e
+          FILE=app/build.gradle.kts
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: $FILE not found"
+            exit 1
+          fi
+          # Remove any existing compileOptions / kotlinOptions blocks that cause the mismatch
+          python3 - "$FILE" <<'PY'
+          import re, sys
+          path = sys.argv[1]
+          src = open(path).read()
+
+          # Strip existing compileOptions { ... } and kotlinOptions { ... } blocks
+          src = re.sub(r'\n\s*compileOptions\s*\{[^}]*\}', '', src, flags=re.S)
+          src = re.sub(r'\n\s*kotlinOptions\s*\{[^}]*\}', '', src, flags=re.S)
+
+          inject = '''
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          '''
+
+          # Insert right after the first `android {` line
+          m = re.search(r'android\s*\{', src)
+          if not m:
+              print("ERROR: could not find android { block", file=sys.stderr)
+              sys.exit(1)
+          idx = m.end()
+          src = src[:idx] + inject + src[idx:]
+
+          open(path, 'w').write(src)
+          print("Patched", path)
+          PY
+          echo "----- patched file (head) -----"
+          sed -n '1,60p' "$FILE"
+        working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Write local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
