@@ -3,84 +3,108 @@ name: Build SNES Pocket Android APK
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
-      - "SNESPocket-Android-Project.zip"
+      - "snesandroidpocket.zip"
       - ".github/workflows/build.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Download repository files
       - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
+      # Step 2: Extract the ZIP stored in the main branch
       - name: Extract Android project
+        shell: bash
         run: |
-          mkdir -p extracted
-          unzip -o SNESPocket-Android-Project.zip -d extracted
-
-          PROJECT_DIR="$(find extracted -name settings.gradle.kts -printf '%h\n' | head -n 1)"
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: Could not find settings.gradle.kts in the ZIP."
-            echo "ZIP contents:"
-            unzip -l SNESPocket-Android-Project.zip
+          if [ ! -f "snesandroidpocket.zip" ]; then
+            echo "ERROR: snesandroidpocket.zip was not found in the repository root."
+            echo "Repository files:"
+            ls -la
             exit 1
           fi
 
-          echo "Project found at: $PROJECT_DIR"
+          mkdir -p extracted
+
+          unzip -o snesandroidpocket.zip -d extracted
+
+          PROJECT_DIR="$(find extracted -name settings.gradle.kts -printf '%h\n' -print -quit)"
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: settings.gradle.kts was not found in the ZIP."
+            echo "ZIP contents:"
+            unzip -l snesandroidpocket.zip
+            exit 1
+          fi
+
+          if [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "ERROR: app/build.gradle.kts was not found."
+            exit 1
+          fi
+
+          echo "Project directory: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      # Step 3: Install Java 17
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # Step 4: Install Android SDK packages
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
+      # Step 5: Install Gradle
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
+      # Step 6: Fix Java and Kotlin JVM targets
+      - name: Fix JVM target compatibility
+        shell: bash
+        run: |
+          GRADLE_FILE="$PROJECT_DIR/app/build.gradle.kts"
+
+          if ! grep -q "SNES_POCKET_JVM_TARGET_FIX" "$GRADLE_FILE"; then
+            cat >> "$GRADLE_FILE" <<'KOTLIN'
+
+          // SNES_POCKET_JVM_TARGET_FIX
+          tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
+              sourceCompatibility = "17"
+              targetCompatibility = "17"
+          }
+
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions.jvmTarget = "17"
+          }
+          KOTLIN
+          fi
+
+          echo "Java and Kotlin JVM targets configured."
+
+      # Step 7: Build the debug APK
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: gradle assembleDebug
 
+      # Step 8: Upload the APK for download
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SNES-Pocket-Android-APK
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-      - name: Save extracted source files
-        run: |
-          mkdir -p source-files
-          cp -a "$PROJECT_DIR"/. source-files/
-
-          if [ -f README.md ]; then
-            echo "README already exists."
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add source-files/
-
-          if ! git diff --cached --quiet; then
-            git commit -m "Add extracted Android project source files"
-            git push
-          else
-            echo "No new source files to commit."
-          If
+          retention-days: 14
