@@ -1,0 +1,73 @@
+```yaml
+name: Build SNES Pocket Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "SNESPocket-Android-Project.zip"
+      - ".github/workflows/build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract Android project
+        run: |
+          unzip -o SNESPocket-Android-Project.zip -d .
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SNES-Pocket-Android-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+### 4. Save the file
+
+1. Tap **Commit changes**.
+2. Confirm the commit if GitHub asks.
+3. Open your repository's **Actions** tab.
+4. Select **Build SNES Pocket Android APK**.
+5. If the workflow hasn't started automatically, select **Run workflow**.
+
+The first build may take several minutes.
+
+### 5. Check the result
+
+- ✅ **Green check:** The build completed successfully.
+- ❌ **Red cross:** The build failed; we'll need to inspect the error.
+- 📦 **Successful build:** Open the completed workflow run and download the `SNES-Pocket-Android-APK` artifact.
+
+**Important:** This first build only attempts to compile the starter app. It does not add the SNES9x engine, so it will not yet run SNES games. We must complete that integration before the app can become the emulator you want for your phone and Google TV.
+
+### Tell me what happens
+
+**A.** I created the file and committed it.  
+**B.** I can't find **Create new file**.  
+**C.** GitHub shows a build error.  
+**D.** The build succeeded.
+
+Reply with **A, B, C, or D**, and we'll continue from there.
+```
