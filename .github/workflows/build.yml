@@ -26,27 +26,23 @@ jobs:
         shell: bash
         run: |
           if [ ! -f "snesandroidpocket.zip" ]; then
-            echo "ERROR: snesandroidpocket.zip was not found in the repository root."
-            echo "Repository files:"
-            ls -la
+            echo "ERROR: snesandroidpocket.zip not found in repository root."
             exit 1
           fi
 
           mkdir -p extracted
-
           unzip -o snesandroidpocket.zip -d extracted
 
-          PROJECT_DIR="$(find extracted -name settings.gradle.kts -printf '%h\n' -print -quit)"
+          PROJECT_DIR="extracted/SNESPocket"
 
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: settings.gradle.kts was not found in the ZIP."
-            echo "ZIP contents:"
-            unzip -l snesandroidpocket.zip
+          if [ ! -f "$PROJECT_DIR/settings.gradle.kts" ]; then
+            echo "ERROR: settings.gradle.kts not found in $PROJECT_DIR"
+            find extracted -name settings.gradle.kts
             exit 1
           fi
 
           if [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
-            echo "ERROR: app/build.gradle.kts was not found."
+            echo "ERROR: app/build.gradle.kts not found in $PROJECT_DIR"
             exit 1
           fi
 
