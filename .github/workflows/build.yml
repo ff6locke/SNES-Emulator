@@ -69,28 +69,27 @@ jobs:
           gradle-version: "8.9"
 
       # Step 6: Fix Java and Kotlin JVM targets
+      
       - name: Fix JVM target compatibility
         shell: bash
         run: |
-          GRADLE_FILE="$PROJECT_DIR/app/build.gradle.kts"
+          cat >> "$PROJECT_DIR/app/build.gradle.kts" <<'EOF'
 
-          if ! grep -q "SNES_POCKET_JVM_TARGET_FIX" "$GRADLE_FILE"; then
-            cat >> "$GRADLE_FILE" <<'KOTLIN'
-
-          // SNES_POCKET_JVM_TARGET_FIX
-          tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
-              sourceCompatibility = "17"
-              targetCompatibility = "17"
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
           }
 
           tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-              kotlinOptions.jvmTarget = "17"
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
           }
-          KOTLIN
-          fi
+          EOF
 
-          echo "Java and Kotlin JVM targets configured."
-          
+          echo "Updated Java and Kotlin targets to JVM 17"
       - name: Inspect source for emulator integration
         shell: bash
         run: |
