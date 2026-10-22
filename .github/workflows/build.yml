@@ -94,6 +94,19 @@ jobs:
           fi
 
           echo "Java and Kotlin JVM targets configured."
+          
+      - name: Inspect source for emulator integration
+        shell: bash
+        run: |
+          echo "===== MainActivity.kt ====="
+          find "$PROJECT_DIR/app/src/main" -name "MainActivity.kt" \
+            -exec sed -n '1,260p' {} \;
+
+          echo "===== app/build.gradle.kts ====="
+          cat "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "===== settings.gradle.kts ====="
+          cat "$PROJECT_DIR/settings.gradle.kts"
 
       # Step 7: Build the debug APK
       - name: Build debug APK
