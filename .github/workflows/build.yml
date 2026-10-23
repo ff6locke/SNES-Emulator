@@ -104,15 +104,23 @@ jobs:
 
           s = settings.read_text()
           if "jitpack.io" not in s:
-              if "mavenCentral()" in s:
-                  s = s.replace("mavenCentral()", 'mavenCentral()\n            maven { url = uri("https://jitpack.io") }', 1)
-              else:
+              marker = "dependencyResolutionManagement {"
+              if marker not in s:
+                  raise SystemExit("Could not find dependencyResolutionManagement in settings.gradle.kts")
+              before, after = s.split(marker, 1)
+              old_repos = "repositories { google(); mavenCentral() }"
+              if old_repos not in after:
                   raise SystemExit("Could not find dependency repositories in settings.gradle.kts")
-              settings.write_text(s)
+              after = after.replace(
+                  old_repos,
+                  'repositories { google(); mavenCentral(); maven { url = uri("https://jitpack.io") } }',
+                  1
+              )
+              settings.write_text(before + marker + after)
 
           g = app_gradle.read_text()
           deps = [
-              '    implementation("com.github.Swordfish90:libretrodroid:master-SNAPSHOT")',
+              '    implementation("com.github.Swordfish90:libretrodroid:0.13.2")',
               '    implementation("androidx.activity:activity-ktx:1.9.3")'
           ]
           for dep in deps:
