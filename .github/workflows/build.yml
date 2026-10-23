@@ -132,6 +132,29 @@ jobs:
                   else:
                       g += "\ndependencies {\n" + dep + "\n}\n"
           app_gradle.write_text(g)
+
+          # Add Android TV / Google TV launcher support.
+          import xml.etree.ElementTree as ET
+          manifests = list((root / "app/src/main").rglob("AndroidManifest.xml"))
+          if manifests:
+              manifest = manifests[0]
+              ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+              tree = ET.parse(manifest)
+              mroot = tree.getroot()
+              android_ns = "{http://schemas.android.com/apk/res/android}"
+              features = {e.get(android_ns + "name") for e in mroot.findall("uses-feature")}
+              if "android.software.leanback" not in features:
+                  ET.SubElement(mroot, "uses-feature", {android_ns + "name": "android.software.leanback", android_ns + "required": "false"})
+              if "android.hardware.touchscreen" not in features:
+                  ET.SubElement(mroot, "uses-feature", {android_ns + "name": "android.hardware.touchscreen", android_ns + "required": "false"})
+              for activity in mroot.findall("application/activity") + mroot.findall("application/activity-alias"):
+                  for intent_filter in activity.findall("intent-filter"):
+                      actions = {x.get(android_ns + "name") for x in intent_filter.findall("action")}
+                      categories = {x.get(android_ns + "name") for x in intent_filter.findall("category")}
+                      if "android.intent.action.MAIN" in actions and "android.intent.category.LAUNCHER" in categories:
+                          if "android.intent.category.LEANBACK_LAUNCHER" not in categories:
+                              ET.SubElement(intent_filter, "category", {android_ns + "name": "android.intent.category.LEANBACK_LAUNCHER"})
+              tree.write(manifest, encoding="utf-8", xml_declaration=True)
           PY
 
           MAIN="$PROJECT_DIR/app/src/main/java/com/example/snespocket/MainActivity.kt"
@@ -172,11 +195,28 @@ jobs:
               private var retroView: GLRetroView? = null
               private var currentRom: File? = null
               private var fastForwardEnabled = false
+              private var pendingRemapTarget: Int? = null
+              private val controllerMap = mutableMapOf<Int, Int>()
+              private val remapActions = linkedMapOf(
+                  "Up" to KeyEvent.KEYCODE_DPAD_UP,
+                  "Down" to KeyEvent.KEYCODE_DPAD_DOWN,
+                  "Left" to KeyEvent.KEYCODE_DPAD_LEFT,
+                  "Right" to KeyEvent.KEYCODE_DPAD_RIGHT,
+                  "A" to KeyEvent.KEYCODE_BUTTON_A,
+                  "B" to KeyEvent.KEYCODE_BUTTON_B,
+                  "X" to KeyEvent.KEYCODE_BUTTON_X,
+                  "Y" to KeyEvent.KEYCODE_BUTTON_Y,
+                  "L" to KeyEvent.KEYCODE_BUTTON_L1,
+                  "R" to KeyEvent.KEYCODE_BUTTON_R1,
+                  "Start" to KeyEvent.KEYCODE_BUTTON_START,
+                  "Select" to KeyEvent.KEYCODE_BUTTON_SELECT
+              )
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   window.statusBarColor = purple
                   window.navigationBarColor = purple
+                  loadControllerMap()
                   showLibrary()
               }
 
@@ -339,6 +379,7 @@ jobs:
                       setBackgroundColor(0xAA2A1841.toInt())
                   }
                   top.addView(makeButton("‹ Library") { exitGame() })
+                  top.addView(makeButton("Map") { showRemapDialog() })
                   top.addView(makeButton("Save") { saveState() })
                   top.addView(makeButton("Load") { loadState() })
                   lateinit var ffButton: Button
@@ -461,10 +502,54 @@ jobs:
                   showLibrary()
               }
 
+              private fun loadControllerMap() {
+                  val saved = getSharedPreferences("controller-map", MODE_PRIVATE).all
+                  controllerMap.clear()
+                  saved.forEach { (physical, target) ->
+                      val p = physical.toIntOrNull()
+                      val t = target as? Int
+                      if (p != null && t != null) controllerMap[p] = t
+                  }
+              }
+
+              private fun saveControllerMap() {
+                  val editor = getSharedPreferences("controller-map", MODE_PRIVATE).edit().clear()
+                  controllerMap.forEach { (physical, target) -> editor.putInt(physical.toString(), target) }
+                  editor.apply()
+              }
+
+              private fun showRemapDialog() {
+                  val labels = remapActions.keys.toTypedArray()
+                  android.app.AlertDialog.Builder(this)
+                      .setTitle("Controller button mapping")
+                      .setMessage("Choose an SNES control, then press the button on your G60S Pro controller. Repeat for each control.")
+                      .setItems(labels) { _, which ->
+                          val target = remapActions[labels[which]] ?: return@setItems
+                          pendingRemapTarget = target
+                          toast("Press the controller button for " + labels[which])
+                      }
+                      .setNeutralButton("Reset mappings") { _, _ ->
+                          controllerMap.clear()
+                          saveControllerMap()
+                          toast("Controller mappings reset")
+                      }
+                      .setNegativeButton("Close", null)
+                      .show()
+              }
+
               override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
                   val view = retroView
+                  if (pendingRemapTarget != null && keyCode != KeyEvent.KEYCODE_BACK) {
+                      val target = pendingRemapTarget!!
+                      controllerMap[keyCode] = target
+                      pendingRemapTarget = null
+                      saveControllerMap()
+                      val label = remapActions.entries.firstOrNull { it.value == target }?.key ?: "button"
+                      toast("$label mapped to controller key $keyCode")
+                      return true
+                  }
                   if (view != null && keyCode != KeyEvent.KEYCODE_BACK) {
-                      view.sendKeyEvent(event.action, keyCode)
+                      view.sendKeyEvent(event.action, controllerMap[keyCode] ?: keyCode)
                       return true
                   }
                   return super.onKeyDown(keyCode, event)
@@ -473,7 +558,7 @@ jobs:
               override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
                   val view = retroView
                   if (view != null && keyCode != KeyEvent.KEYCODE_BACK) {
-                      view.sendKeyEvent(event.action, keyCode)
+                      view.sendKeyEvent(event.action, controllerMap[keyCode] ?: keyCode)
                       return true
                   }
                   return super.onKeyUp(keyCode, event)
