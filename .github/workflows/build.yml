@@ -105,7 +105,7 @@ jobs:
           s = settings.read_text()
           if "jitpack.io" not in s:
               if "mavenCentral()" in s:
-                  s = s.replace("mavenCentral()", 'mavenCentral()\\n            maven { url = uri("https://jitpack.io") }', 1)
+                  s = s.replace("mavenCentral()", 'mavenCentral()\n            maven { url = uri("https://jitpack.io") }', 1)
               else:
                   raise SystemExit("Could not find dependency repositories in settings.gradle.kts")
               settings.write_text(s)
@@ -117,11 +117,11 @@ jobs:
           ]
           for dep in deps:
               if dep not in g:
-                  match = re.search(r"dependencies\\s*\\{", g)
+                  match = re.search(r"dependencies\s*\{", g)
                   if not match:
                       raise SystemExit("Could not find dependencies block in app/build.gradle.kts")
                   pos = match.end()
-                  g = g[:pos] + "\\n" + dep + g[pos:]
+                  g = g[:pos] + "\n" + dep + g[pos:]
           app_gradle.write_text(g)
           PY
 
