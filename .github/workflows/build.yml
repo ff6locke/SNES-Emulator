@@ -341,13 +341,14 @@ jobs:
                   top.addView(makeButton("‹ Library") { exitGame() })
                   top.addView(makeButton("Save") { saveState() })
                   top.addView(makeButton("Load") { loadState() })
-                  top.addView(makeButton("FF 1×") {
+                  lateinit var ffButton: Button
+                  ffButton = makeButton("FF 1×") {
                       fastForwardEnabled = !fastForwardEnabled
                       retroView?.frameSpeed = if (fastForwardEnabled) 3 else 1
+                      ffButton.text = if (fastForwardEnabled) "FF 3×" else "FF 1×"
                       toast(if (fastForwardEnabled) "Fast forward: 3×" else "Normal speed: 1×")
-                      // Refresh the label so the active speed is visible.
-                      (it as? Button)?.text = if (fastForwardEnabled) "FF 3×" else "FF 1×"
-                  })
+                  }
+                  top.addView(ffButton)
                   root.addView(top, FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP))
 
                   val bottom = LinearLayout(this).apply {
