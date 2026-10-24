@@ -204,6 +204,8 @@ jobs:
               private var pendingRemapTarget: Int? = null
               private var mappingScreenVisible = false
               private var mappingOverlay: View? = null
+              private var gameMenuOverlay: View? = null
+              private var gameMenuVisible = false
               private val controllerMap = mutableMapOf<Int, Int>()
               private val remapActions = linkedMapOf(
                   "Up" to KeyEvent.KEYCODE_DPAD_UP,
@@ -390,6 +392,7 @@ jobs:
                       setBackgroundColor(0x882A1841.toInt())
                   }
                   top.addView(makeButton("‹ Library") { exitGame() })
+                  top.addView(makeButton("Menu") { showGameMenu() })
                   top.addView(makeButton("Map") { showRemapDialog() })
                   top.addView(makeButton("Move") {
                       moveControlsEnabled = !moveControlsEnabled
@@ -545,6 +548,57 @@ jobs:
                   return true
               }
 
+              private fun showGameMenu() {
+                  if (gameMenuOverlay != null) return
+                  gameMenuVisible = true
+                  val overlay = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = Gravity.CENTER
+                      setPadding(dp(24), dp(20), dp(24), dp(20))
+                      setBackgroundColor(Color.rgb(30, 20, 43))
+                  }
+                  gameMenuOverlay = overlay
+                  overlay.addView(TextView(this).apply {
+                      text = "SNES POCKET MENU"
+                      textSize = 24f
+                      typeface = Typeface.DEFAULT_BOLD
+                      setTextColor(accent)
+                      gravity = Gravity.CENTER
+                      setPadding(0, 0, 0, dp(16))
+                  })
+                  val actions = listOf<Pair<String, () -> Unit>>(
+                      "Resume Game" to { closeGameMenu() },
+                      "Save State" to { closeGameMenu(); saveState() },
+                      "Load State" to { closeGameMenu(); loadState() },
+                      "Controller Mapping" to { closeGameMenu(); showRemapDialog() },
+                      (if (moveControlsEnabled) "Finish Moving Buttons" else "Move Buttons") to {
+                          moveControlsEnabled = !moveControlsEnabled
+                          closeGameMenu()
+                          toast(if (moveControlsEnabled) "Move mode ON: drag a control group, then tap Move again." else "Move mode OFF")
+                      },
+                      (if (fastForwardEnabled) "Fast Forward: OFF" else "Fast Forward: 3×") to {
+                          fastForwardEnabled = !fastForwardEnabled
+                          retroView?.frameSpeed = if (fastForwardEnabled) 3 else 1
+                          closeGameMenu()
+                      },
+                      "Game Library (Exit Game)" to { closeGameMenu(); exitGame() }
+                  )
+                  actions.forEach { (label, action) ->
+                      overlay.addView(makeButton(label, action),
+                          LinearLayout.LayoutParams(-1, dp(50)).apply {
+                              setMargins(0, dp(4), 0, dp(4))
+                          })
+                  }
+                  root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+                  overlay.bringToFront()
+              }
+
+              private fun closeGameMenu() {
+                  gameMenuOverlay?.let { root.removeView(it) }
+                  gameMenuOverlay = null
+                  gameMenuVisible = false
+              }
+
               private fun saveState() {
                   val view = retroView ?: return
                   val game = currentRom ?: return
@@ -666,6 +720,13 @@ jobs:
               override fun dispatchKeyEvent(event: KeyEvent): Boolean {
                   val keyCode = event.keyCode
                   val view = retroView
+                  if (gameMenuVisible) {
+                      if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                          closeGameMenu()
+                          return true
+                      }
+                      return super.dispatchKeyEvent(event)
+                  }
                   if (mappingScreenVisible) {
                       if (pendingRemapTarget != null && event.action == KeyEvent.ACTION_DOWN &&
                           keyCode != KeyEvent.KEYCODE_BACK) {
@@ -735,6 +796,56 @@ jobs:
           done
 
           echo "LibretroDroid dependency, SNES9x cores, ROM import, touch/gamepad controls and save states prepared."
+
+      # Give each APK a higher versionCode so Android accepts upgrades.
+      - name: Set Android version code
+        shell: bash
+        run: |
+          cat >> "$PROJECT_DIR/app/build.gradle.kts" <<'EOF'
+
+          android {
+              defaultConfig {
+                  versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+              }
+          }
+          EOF
+
+      # Stable signing requires a one-time keystore saved in GitHub Actions secrets.
+      # Secrets: SNES_SIGNING_KEYSTORE_BASE64, SNES_KEYSTORE_PASSWORD, SNES_KEY_ALIAS, SNES_KEY_PASSWORD.
+      - name: Configure persistent APK signing
+        if: ${{ secrets.SNES_SIGNING_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        env:
+          SNES_SIGNING_KEYSTORE_BASE64: ${{ secrets.SNES_SIGNING_KEYSTORE_BASE64 }}
+          SNES_KEYSTORE_PASSWORD: ${{ secrets.SNES_KEYSTORE_PASSWORD }}
+          SNES_KEY_ALIAS: ${{ secrets.SNES_KEY_ALIAS }}
+          SNES_KEY_PASSWORD: ${{ secrets.SNES_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/snes-pocket-signing.jks"
+          echo "$SNES_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          echo "SNES_KEYSTORE_PATH=$KEYSTORE" >> "$GITHUB_ENV"
+          echo "SNES_KEYSTORE_PASSWORD=$SNES_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "SNES_KEY_ALIAS=$SNES_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "SNES_KEY_PASSWORD=$SNES_KEY_PASSWORD" >> "$GITHUB_ENV"
+          cat >> "$PROJECT_DIR/app/build.gradle.kts" <<'EOF'
+
+          android {
+              signingConfigs {
+                  create("snesPocketStable") {
+                      storeFile = file(System.getenv("SNES_KEYSTORE_PATH"))
+                      storePassword = System.getenv("SNES_KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("SNES_KEY_ALIAS")
+                      keyPassword = System.getenv("SNES_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  getByName("debug") {
+                      signingConfig = signingConfigs.getByName("snesPocketStable")
+                  }
+              }
+          }
+          EOF
 
       # Step 7: Build the debug APK
       - name: Build debug APK
