@@ -396,7 +396,7 @@ jobs:
                   top.addView(makeButton("Map") { showRemapDialog() })
                   top.addView(makeButton("Move") {
                       moveControlsEnabled = !moveControlsEnabled
-                      toast(if (moveControlsEnabled) "Move mode ON: drag a control group from its open area. Tap Move again when finished." else "Move mode OFF")
+                      toast(if (moveControlsEnabled) "Move mode ON: drag each button separately. Tap Move again when finished." else "Move mode OFF")
                   })
                   top.addView(makeButton("Save") { saveState() })
                   top.addView(makeButton("Load") { loadState() })
@@ -411,14 +411,14 @@ jobs:
 
                   // SNES9x-inspired arrangement: shoulder buttons high, D-pad left,
                   // ABXY diamond on the right, and Start/Select near the bottom center.
-                  root.addView(control("L", KeyEvent.KEYCODE_BUTTON_L1, 76, true, 44).apply { tag = "snes-left-shoulder" },
-                      FrameLayout.LayoutParams(dp(76), dp(44), Gravity.TOP or Gravity.LEFT).apply {
-                          leftMargin = dp(12)
+                  root.addView(control("L", KeyEvent.KEYCODE_BUTTON_L1, 60, true, 38).apply { tag = "snes-left-shoulder" },
+                      FrameLayout.LayoutParams(dp(60), dp(38), Gravity.TOP or Gravity.LEFT).apply {
+                          leftMargin = dp(8)
                           topMargin = dp(52)
                       })
-                  root.addView(control("R", KeyEvent.KEYCODE_BUTTON_R1, 76, true, 44).apply { tag = "snes-right-shoulder" },
-                      FrameLayout.LayoutParams(dp(76), dp(44), Gravity.TOP or Gravity.RIGHT).apply {
-                          rightMargin = dp(12)
+                  root.addView(control("R", KeyEvent.KEYCODE_BUTTON_R1, 60, true, 38).apply { tag = "snes-right-shoulder" },
+                      FrameLayout.LayoutParams(dp(60), dp(38), Gravity.TOP or Gravity.RIGHT).apply {
+                          rightMargin = dp(8)
                           topMargin = dp(52)
                       })
 
@@ -427,43 +427,43 @@ jobs:
                       gravity = Gravity.CENTER
                   }
                   val dpadTop = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  dpadTop.addView(control("▲", KeyEvent.KEYCODE_DPAD_UP, 58))
+                  dpadTop.addView(control("▲", KeyEvent.KEYCODE_DPAD_UP, 50))
                   val dpadMiddle = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  dpadMiddle.addView(control("◀", KeyEvent.KEYCODE_DPAD_LEFT, 58))
-                  dpadMiddle.addView(control("", -1, 58, false))
-                  dpadMiddle.addView(control("▶", KeyEvent.KEYCODE_DPAD_RIGHT, 58))
+                  dpadMiddle.addView(control("◀", KeyEvent.KEYCODE_DPAD_LEFT, 50))
+                  dpadMiddle.addView(control("", -1, 50, false))
+                  dpadMiddle.addView(control("▶", KeyEvent.KEYCODE_DPAD_RIGHT, 50))
                   val dpadBottom = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  dpadBottom.addView(control("▼", KeyEvent.KEYCODE_DPAD_DOWN, 58))
+                  dpadBottom.addView(control("▼", KeyEvent.KEYCODE_DPAD_DOWN, 50))
                   dpad.addView(dpadTop)
                   dpad.addView(dpadMiddle)
                   dpad.addView(dpadBottom)
                   root.addView(dpad, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.LEFT).apply {
-                      leftMargin = dp(12)
-                      bottomMargin = dp(12)
+                      leftMargin = dp(8)
+                      bottomMargin = dp(8)
                   })
 
                   val face = FrameLayout(this)
-                  face.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 58),
-                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
-                  face.addView(control("Y", KeyEvent.KEYCODE_BUTTON_Y, 58),
-                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.CENTER_VERTICAL or Gravity.LEFT))
-                  face.addView(control("A", KeyEvent.KEYCODE_BUTTON_A, 58),
-                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.CENTER_VERTICAL or Gravity.RIGHT))
-                  face.addView(control("B", KeyEvent.KEYCODE_BUTTON_B, 58),
-                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
-                  root.addView(face, FrameLayout.LayoutParams(dp(190), dp(190), Gravity.BOTTOM or Gravity.RIGHT).apply {
-                      rightMargin = dp(12)
-                      bottomMargin = dp(12)
+                  face.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 50),
+                      FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+                  face.addView(control("Y", KeyEvent.KEYCODE_BUTTON_Y, 50),
+                      FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER_VERTICAL or Gravity.LEFT))
+                  face.addView(control("A", KeyEvent.KEYCODE_BUTTON_A, 50),
+                      FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER_VERTICAL or Gravity.RIGHT).apply { rightMargin = dp(0) })
+                  face.addView(control("B", KeyEvent.KEYCODE_BUTTON_B, 50),
+                      FrameLayout.LayoutParams(dp(50), dp(50), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+                  root.addView(face, FrameLayout.LayoutParams(dp(120), dp(120), Gravity.BOTTOM or Gravity.RIGHT).apply {
+                      rightMargin = dp(8)
+                      bottomMargin = dp(8)
                   })
 
                   val startSelect = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER
                   }
-                  startSelect.addView(control("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 78, true, 42))
-                  startSelect.addView(control("START", KeyEvent.KEYCODE_BUTTON_START, 78, true, 42))
+                  startSelect.addView(control("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 68, true, 38))
+                  startSelect.addView(control("START", KeyEvent.KEYCODE_BUTTON_START, 68, true, 38))
                   root.addView(startSelect, FrameLayout.LayoutParams(-2, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                      bottomMargin = dp(12)
+                      bottomMargin = dp(8)
                   })
               }
 
@@ -487,7 +487,7 @@ jobs:
                   isFocusable = false
                   elevation = if (enabled) dp(3).toFloat() else 0f
                   val lp = LinearLayout.LayoutParams(dp(widthDp), dp(heightDp))
-                  lp.setMargins(dp(3), dp(3), dp(3), dp(3))
+                  lp.setMargins(dp(1), dp(1), dp(1), dp(1))
                   layoutParams = lp
                   if (enabled) setOnTouchListener { view, event ->
                       val v = retroView
@@ -506,39 +506,21 @@ jobs:
                   }
               }
 
-              // In Move mode, dragging any button moves its whole control group.
-              // Touching controls outside Move mode remains dedicated to gameplay.
+              // Move mode drags only the touched button, never its parent group.
+              // This lets players place buttons close enough for comfortable multi-touch.
               private fun handleMoveTouch(touchedView: View, event: MotionEvent): Boolean {
-                  var group = touchedView
-                  while (group.parent is View && group.parent !== root) {
-                      group = group.parent as View
-                  }
-                  val lp = group.layoutParams as? FrameLayout.LayoutParams ?: return true
                   when (event.actionMasked) {
                       MotionEvent.ACTION_DOWN -> {
-                          draggedControlGroup = group
+                          draggedControlGroup = touchedView
                           dragDownRawX = event.rawX
                           dragDownRawY = event.rawY
-                          val location = IntArray(2)
-                          val rootLocation = IntArray(2)
-                          group.getLocationOnScreen(location)
-                          root.getLocationOnScreen(rootLocation)
-                          lp.gravity = Gravity.TOP or Gravity.LEFT
-                          lp.leftMargin = location[0] - rootLocation[0]
-                          lp.topMargin = location[1] - rootLocation[1]
-                          lp.rightMargin = 0
-                          lp.bottomMargin = 0
-                          group.layoutParams = lp
-                          dragStartLeft = lp.leftMargin
-                          dragStartTop = lp.topMargin
+                          dragStartLeft = touchedView.translationX.toInt()
+                          dragStartTop = touchedView.translationY.toInt()
                       }
                       MotionEvent.ACTION_MOVE -> {
-                          if (draggedControlGroup === group) {
-                              lp.leftMargin = (dragStartLeft + event.rawX - dragDownRawX).toInt()
-                                  .coerceIn(0, (root.width - group.width).coerceAtLeast(0))
-                              lp.topMargin = (dragStartTop + event.rawY - dragDownRawY).toInt()
-                                  .coerceIn(0, (root.height - group.height).coerceAtLeast(0))
-                              group.layoutParams = lp
+                          if (draggedControlGroup === touchedView) {
+                              touchedView.translationX = dragStartLeft + event.rawX - dragDownRawX
+                              touchedView.translationY = dragStartTop + event.rawY - dragDownRawY
                           }
                       }
                       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -574,7 +556,7 @@ jobs:
                       (if (moveControlsEnabled) "Finish Moving Buttons" else "Move Buttons") to {
                           moveControlsEnabled = !moveControlsEnabled
                           closeGameMenu()
-                          toast(if (moveControlsEnabled) "Move mode ON: drag a control group, then tap Move again." else "Move mode OFF")
+                          toast(if (moveControlsEnabled) "Move mode ON: drag each button separately, then tap Move again." else "Move mode OFF")
                       },
                       (if (fastForwardEnabled) "Fast Forward: OFF" else "Fast Forward: 3×") to {
                           fastForwardEnabled = !fastForwardEnabled
