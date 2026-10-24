@@ -195,6 +195,7 @@ jobs:
               private var retroView: GLRetroView? = null
               private var currentRom: File? = null
               private var fastForwardEnabled = false
+              private var moveControlsEnabled = false
               private var pendingRemapTarget: Int? = null
               private var mappingScreenVisible = false
               private var mappingOverlay: View? = null
@@ -382,6 +383,11 @@ jobs:
                   }
                   top.addView(makeButton("‹ Library") { exitGame() })
                   top.addView(makeButton("Map") { showRemapDialog() })
+                  top.addView(makeButton("Move") {
+                      moveControlsEnabled = !moveControlsEnabled
+                      (it as? Button)?.text = if (moveControlsEnabled) "Move: ON" else "Move"
+                      toast(if (moveControlsEnabled) "Drag the D-pad, ABXY, L/R, or Start/Select group to move it. Tap Move: ON when finished." else "Button moving finished")
+                  })
                   top.addView(makeButton("Save") { saveState() })
                   top.addView(makeButton("Load") { loadState() })
                   lateinit var ffButton: Button
@@ -395,12 +401,12 @@ jobs:
 
                   // SNES9x-inspired arrangement: shoulder buttons high, D-pad left,
                   // ABXY diamond on the right, and Start/Select near the bottom center.
-                  root.addView(control("L", KeyEvent.KEYCODE_BUTTON_L1, 76, true, 44),
+                  root.addView(control("L", KeyEvent.KEYCODE_BUTTON_L1, 76, true, 44).apply { tag = "snes-left-shoulder" },
                       FrameLayout.LayoutParams(dp(76), dp(44), Gravity.TOP or Gravity.LEFT).apply {
                           leftMargin = dp(12)
                           topMargin = dp(52)
                       })
-                  root.addView(control("R", KeyEvent.KEYCODE_BUTTON_R1, 76, true, 44),
+                  root.addView(control("R", KeyEvent.KEYCODE_BUTTON_R1, 76, true, 44).apply { tag = "snes-right-shoulder" },
                       FrameLayout.LayoutParams(dp(76), dp(44), Gravity.TOP or Gravity.RIGHT).apply {
                           rightMargin = dp(12)
                           topMargin = dp(52)
@@ -425,6 +431,7 @@ jobs:
                       leftMargin = dp(12)
                       bottomMargin = dp(12)
                   })
+                  makeGroupMovable(dpad)
 
                   val face = FrameLayout(this)
                   face.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 58),
@@ -439,6 +446,7 @@ jobs:
                       rightMargin = dp(12)
                       bottomMargin = dp(12)
                   })
+                  makeGroupMovable(face)
 
                   val startSelect = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
@@ -449,6 +457,9 @@ jobs:
                   root.addView(startSelect, FrameLayout.LayoutParams(-2, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                       bottomMargin = dp(12)
                   })
+                  makeGroupMovable(startSelect)
+                  root.findViewWithTag<View>("snes-left-shoulder")?.let { makeGroupMovable(it) }
+                  root.findViewWithTag<View>("snes-right-shoulder")?.let { makeGroupMovable(it) }
               }
 
               private fun control(
@@ -475,18 +486,69 @@ jobs:
                   layoutParams = lp
                   if (enabled) setOnTouchListener { view, event ->
                       val v = retroView
+                      if (moveControlsEnabled) return@setOnTouchListener false
                       when (event.actionMasked) {
-                          MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                          MotionEvent.ACTION_DOWN -> {
                               view.setBackgroundColor(Color.rgb(125, 88, 165))
                               if (v != null) v.sendKeyEvent(KeyEvent.ACTION_DOWN, key)
                           }
-                          MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                          MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                               view.setBackgroundColor(panel)
                               if (v != null) v.sendKeyEvent(KeyEvent.ACTION_UP, key)
                           }
                       }
                       true
                   }
+              }
+
+              // In Move mode, drag each control group to a comfortable position.
+              // Touching controls outside Move mode remains dedicated to gameplay.
+              private fun makeGroupMovable(group: View) {
+                  var downRawX = 0f
+                  var downRawY = 0f
+                  var startX = 0
+                  var startY = 0
+                  group.setOnTouchListener { view, event ->
+                      if (!moveControlsEnabled) return@setOnTouchListener false
+                      val lp = view.layoutParams as? FrameLayout.LayoutParams
+                          ?: return@setOnTouchListener false
+                      when (event.actionMasked) {
+                          MotionEvent.ACTION_DOWN -> {
+                              downRawX = event.rawX
+                              downRawY = event.rawY
+                              startX = lp.leftMargin
+                              startY = lp.topMargin
+                              // Convert gravity-anchored layout to top-left positioning for dragging.
+                              val location = IntArray(2)
+                              view.getLocationOnScreen(location)
+                              lp.gravity = Gravity.TOP or Gravity.LEFT
+                              lp.leftMargin = location[0]
+                              lp.topMargin = location[1] - getStatusBarHeight()
+                              view.layoutParams = lp
+                              startX = lp.leftMargin
+                              startY = lp.topMargin
+                              true
+                          }
+                          MotionEvent.ACTION_MOVE -> {
+                              lp.leftMargin = (startX + event.rawX - downRawX).toInt().coerceIn(0, (root.width - view.width).coerceAtLeast(0))
+                              lp.topMargin = (startY + event.rawY - downRawY).toInt().coerceIn(0, (root.height - view.height).coerceAtLeast(0))
+                              lp.rightMargin = 0
+                              lp.bottomMargin = 0
+                              view.layoutParams = lp
+                              true
+                          }
+                          MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                              view.performClick()
+                              true
+                          }
+                          else -> true
+                      }
+                  }
+              }
+
+              private fun getStatusBarHeight(): Int {
+                  val resource = resources.getIdentifier("status_bar_height", "dimen", "android")
+                  return if (resource > 0) resources.getDimensionPixelSize(resource) else 0
               }
 
               private fun saveState() {
