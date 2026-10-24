@@ -466,6 +466,9 @@ jobs:
                       FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER_VERTICAL or Gravity.RIGHT).apply { rightMargin = dp(0) })
                   face.addView(control("B", KeyEvent.KEYCODE_BUTTON_B, 50),
                       FrameLayout.LayoutParams(dp(50), dp(50), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+                  // Dedicated one-finger combo zone: one touch presses X and B together.
+                  face.addView(comboControl("X+B", KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_B),
+                      FrameLayout.LayoutParams(dp(42), dp(26), Gravity.CENTER))
                   root.addView(face, FrameLayout.LayoutParams(dp(120), dp(120), Gravity.BOTTOM or Gravity.RIGHT).apply {
                       rightMargin = dp(8)
                       bottomMargin = dp(8)
@@ -482,6 +485,39 @@ jobs:
                   root.addView(startSelect, FrameLayout.LayoutParams(-2, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                       bottomMargin = dp(8)
                   })
+              }
+
+              private fun comboControl(label: String, firstKey: Int, secondKey: Int): TextView = TextView(this).apply {
+                  text = label
+                  textSize = 11f
+                  gravity = Gravity.CENTER
+                  setTextColor(Color.WHITE)
+                  setBackgroundColor(0xFF68458A.toInt())
+                  isClickable = true
+                  isFocusable = false
+                  elevation = dp(5).toFloat()
+                  setOnTouchListener { view, event ->
+                      if (moveControlsEnabled) return@setOnTouchListener false
+                      val v = retroView
+                      when (event.actionMasked) {
+                          MotionEvent.ACTION_DOWN -> {
+                              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) view.requestUnbufferedDispatch(event)
+                              view.setBackgroundColor(Color.rgb(125, 88, 165))
+                              if (v != null) {
+                                  v.sendKeyEvent(KeyEvent.ACTION_DOWN, firstKey)
+                                  v.sendKeyEvent(KeyEvent.ACTION_DOWN, secondKey)
+                              }
+                          }
+                          MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                              view.setBackgroundColor(0xFF68458A.toInt())
+                              if (v != null) {
+                                  v.sendKeyEvent(KeyEvent.ACTION_UP, secondKey)
+                                  v.sendKeyEvent(KeyEvent.ACTION_UP, firstKey)
+                              }
+                          }
+                      }
+                      true
+                  }
               }
 
               private fun control(
