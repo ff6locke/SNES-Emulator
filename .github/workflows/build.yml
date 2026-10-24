@@ -294,7 +294,10 @@ jobs:
                       setOnClickListener { action() }
                   }
 
-              private fun openRomPicker() {
+              private var launchImportedGame = false
+
+              private fun openRomPicker(autoStartGame: Boolean = false) {
+                  launchImportedGame = autoStartGame
                   val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                       addCategory(Intent.CATEGORY_OPENABLE)
                       type = "*/*"
@@ -322,8 +325,15 @@ jobs:
                       contentResolver.openInputStream(uri)?.use { input ->
                           target.outputStream().use { output -> input.copyTo(output) }
                       } ?: throw IllegalStateException("Could not read the selected file")
-                      showLibrary()
-                      toast("Imported ${target.name}")
+                      val shouldLaunch = launchImportedGame
+                      launchImportedGame = false
+                      if (shouldLaunch) {
+                          startGame(target)
+                          toast("Loaded ${target.name}")
+                      } else {
+                          showLibrary()
+                          toast("Imported ${target.name}")
+                      }
                   } catch (e: Exception) {
                       toast("Import failed: ${e.message ?: "unknown error"}")
                   }
@@ -498,6 +508,11 @@ jobs:
                       if (moveControlsEnabled) return@setOnTouchListener handleMoveTouch(view, event)
                       when (event.actionMasked) {
                           MotionEvent.ACTION_DOWN -> {
+                              // Request unbuffered touch delivery where supported to reduce
+                              // latency on the on-screen SNES controls.
+                              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                  view.requestUnbufferedDispatch(event)
+                              }
                               view.setBackgroundColor(Color.rgb(125, 88, 165))
                               if (v != null) v.sendKeyEvent(KeyEvent.ACTION_DOWN, key)
                           }
@@ -554,6 +569,7 @@ jobs:
                   })
                   val actions = listOf<Pair<String, () -> Unit>>(
                       "Resume Game" to { closeGameMenu() },
+                      "Load Game" to { closeGameMenu(); openRomPicker(autoStartGame = true) },
                       "Save State" to { closeGameMenu(); saveState() },
                       "Load State" to { closeGameMenu(); loadState() },
                       "Controller Mapping" to { closeGameMenu(); showRemapDialog() },
