@@ -196,6 +196,11 @@ jobs:
               private var currentRom: File? = null
               private var fastForwardEnabled = false
               private var moveControlsEnabled = false
+              private var draggedControlGroup: View? = null
+              private var dragDownRawX = 0f
+              private var dragDownRawY = 0f
+              private var dragStartLeft = 0
+              private var dragStartTop = 0
               private var pendingRemapTarget: Int? = null
               private var mappingScreenVisible = false
               private var mappingOverlay: View? = null
@@ -488,7 +493,7 @@ jobs:
                   layoutParams = lp
                   if (enabled) setOnTouchListener { view, event ->
                       val v = retroView
-                      if (moveControlsEnabled) return@setOnTouchListener false
+                      if (moveControlsEnabled) return@setOnTouchListener handleMoveTouch(view, event)
                       when (event.actionMasked) {
                           MotionEvent.ACTION_DOWN -> {
                               view.setBackgroundColor(Color.rgb(125, 88, 165))
@@ -503,8 +508,48 @@ jobs:
                   }
               }
 
-              // In Move mode, drag each control group to a comfortable position.
+              // In Move mode, dragging any button moves its whole control group.
               // Touching controls outside Move mode remains dedicated to gameplay.
+              private fun handleMoveTouch(touchedView: View, event: MotionEvent): Boolean {
+                  var group = touchedView
+                  while (group.parent is View && group.parent !== root) {
+                      group = group.parent as View
+                  }
+                  val lp = group.layoutParams as? FrameLayout.LayoutParams ?: return true
+                  when (event.actionMasked) {
+                      MotionEvent.ACTION_DOWN -> {
+                          draggedControlGroup = group
+                          dragDownRawX = event.rawX
+                          dragDownRawY = event.rawY
+                          val location = IntArray(2)
+                          val rootLocation = IntArray(2)
+                          group.getLocationOnScreen(location)
+                          root.getLocationOnScreen(rootLocation)
+                          lp.gravity = Gravity.TOP or Gravity.LEFT
+                          lp.leftMargin = location[0] - rootLocation[0]
+                          lp.topMargin = location[1] - rootLocation[1]
+                          lp.rightMargin = 0
+                          lp.bottomMargin = 0
+                          group.layoutParams = lp
+                          dragStartLeft = lp.leftMargin
+                          dragStartTop = lp.topMargin
+                      }
+                      MotionEvent.ACTION_MOVE -> {
+                          if (draggedControlGroup === group) {
+                              lp.leftMargin = (dragStartLeft + event.rawX - dragDownRawX).toInt()
+                                  .coerceIn(0, (root.width - group.width).coerceAtLeast(0))
+                              lp.topMargin = (dragStartTop + event.rawY - dragDownRawY).toInt()
+                                  .coerceIn(0, (root.height - group.height).coerceAtLeast(0))
+                              group.layoutParams = lp
+                          }
+                      }
+                      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                          draggedControlGroup = null
+                      }
+                  }
+                  return true
+              }
+
               private fun makeGroupMovable(group: View) {
                   var downRawX = 0f
                   var downRawY = 0f
