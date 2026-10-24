@@ -813,7 +813,6 @@ jobs:
       # Stable signing requires a one-time keystore saved in GitHub Actions secrets.
       # Secrets: SNES_SIGNING_KEYSTORE_BASE64, SNES_KEYSTORE_PASSWORD, SNES_KEY_ALIAS, SNES_KEY_PASSWORD.
       - name: Configure persistent APK signing
-        if: ${{ secrets.SNES_SIGNING_KEYSTORE_BASE64 != '' }}
         shell: bash
         env:
           SNES_SIGNING_KEYSTORE_BASE64: ${{ secrets.SNES_SIGNING_KEYSTORE_BASE64 }}
@@ -822,6 +821,10 @@ jobs:
           SNES_KEY_PASSWORD: ${{ secrets.SNES_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          if [ -z "$SNES_SIGNING_KEYSTORE_BASE64" ]; then
+            echo "Persistent signing secrets are not configured; using temporary debug signing for this build."
+            exit 0
+          fi
           KEYSTORE="$RUNNER_TEMP/snes-pocket-signing.jks"
           echo "$SNES_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
           echo "SNES_KEYSTORE_PATH=$KEYSTORE" >> "$GITHUB_ENV"
