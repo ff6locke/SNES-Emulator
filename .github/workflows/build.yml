@@ -207,6 +207,9 @@ jobs:
               private var gameMenuOverlay: View? = null
               private var gameMenuVisible = false
               private val controllerMap = mutableMapOf<Int, Int>()
+              // Keys held by the current one-finger slide-combo gesture.
+              private val controlKeys = mutableMapOf<View, Int>()
+              private val singleFingerHeldKeys = mutableSetOf<Int>()
               private val remapActions = linkedMapOf(
                   "Up" to KeyEvent.KEYCODE_DPAD_UP,
                   "Down" to KeyEvent.KEYCODE_DPAD_DOWN,
@@ -488,6 +491,7 @@ jobs:
                   enabled: Boolean = true,
                   heightDp: Int = widthDp
               ): TextView = TextView(this).apply {
+                  controlKeys[this] = key
                   text = label
                   textSize = when {
                       label.length > 3 -> 10f
@@ -513,15 +517,45 @@ jobs:
                               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                   view.requestUnbufferedDispatch(event)
                               }
+                              singleFingerHeldKeys.clear()
+                              singleFingerHeldKeys.add(key)
                               view.setBackgroundColor(Color.rgb(125, 88, 165))
                               if (v != null) v.sendKeyEvent(KeyEvent.ACTION_DOWN, key)
                           }
+                          MotionEvent.ACTION_MOVE -> {
+                              // A single finger can slide from one control to another while
+                              // keeping the previously touched controls held (e.g. X then B).
+                              val hit = findControlAtScreenPoint(event.rawX, event.rawY)
+                              val hitKey = hit?.let { controlKeys[it] }
+                              if (hitKey != null && singleFingerHeldKeys.add(hitKey)) {
+                                  hit.setBackgroundColor(Color.rgb(125, 88, 165))
+                                  if (v != null) v.sendKeyEvent(KeyEvent.ACTION_DOWN, hitKey)
+                              }
+                          }
                           MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                              view.setBackgroundColor(panel)
-                              if (v != null) v.sendKeyEvent(KeyEvent.ACTION_UP, key)
+                              controlKeys.forEach { (button, buttonKey) ->
+                                  if (singleFingerHeldKeys.contains(buttonKey)) {
+                                      button.setBackgroundColor(panel)
+                                  }
+                              }
+                              singleFingerHeldKeys.toList().forEach { heldKey ->
+                                  if (v != null) v.sendKeyEvent(KeyEvent.ACTION_UP, heldKey)
+                              }
+                              singleFingerHeldKeys.clear()
                           }
                       }
                       true
+                  }
+              }
+
+              private fun findControlAtScreenPoint(rawX: Float, rawY: Float): View? {
+                  // Check the topmost on-screen control first, so overlapping controls behave predictably.
+                  return controlKeys.keys.toList().asReversed().firstOrNull { button ->
+                      if (!button.isShown || !button.isEnabled) return@firstOrNull false
+                      val location = IntArray(2)
+                      button.getLocationOnScreen(location)
+                      rawX >= location[0] && rawX < location[0] + button.width &&
+                          rawY >= location[1] && rawY < location[1] + button.height
                   }
               }
 
