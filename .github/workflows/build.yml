@@ -362,7 +362,10 @@ jobs:
                       }
                       currentRom = game
                       fastForwardEnabled = false
-                      root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+                      root = FrameLayout(this).apply {
+                      setBackgroundColor(Color.BLACK)
+                      setMotionEventSplittingEnabled(true)
+                  }
                       val view = GLRetroView(this, data)
                       retroView = view
                       lifecycle.addObserver(view)
@@ -385,8 +388,7 @@ jobs:
                   top.addView(makeButton("Map") { showRemapDialog() })
                   top.addView(makeButton("Move") {
                       moveControlsEnabled = !moveControlsEnabled
-                      (it as? Button)?.text = if (moveControlsEnabled) "Move: ON" else "Move"
-                      toast(if (moveControlsEnabled) "Drag the D-pad, ABXY, L/R, or Start/Select group to move it. Tap Move: ON when finished." else "Button moving finished")
+                      toast(if (moveControlsEnabled) "Move mode ON: drag a control group from its open area. Tap Move again when finished." else "Move mode OFF")
                   })
                   top.addView(makeButton("Save") { saveState() })
                   top.addView(makeButton("Load") { loadState() })
@@ -520,10 +522,12 @@ jobs:
                               startY = lp.topMargin
                               // Convert gravity-anchored layout to top-left positioning for dragging.
                               val location = IntArray(2)
+                              val rootLocation = IntArray(2)
                               view.getLocationOnScreen(location)
+                              root.getLocationOnScreen(rootLocation)
                               lp.gravity = Gravity.TOP or Gravity.LEFT
-                              lp.leftMargin = location[0]
-                              lp.topMargin = location[1] - getStatusBarHeight()
+                              lp.leftMargin = location[0] - rootLocation[0]
+                              lp.topMargin = location[1] - rootLocation[1]
                               view.layoutParams = lp
                               startX = lp.leftMargin
                               startY = lp.topMargin
@@ -544,11 +548,6 @@ jobs:
                           else -> true
                       }
                   }
-              }
-
-              private fun getStatusBarHeight(): Int {
-                  val resource = resources.getIdentifier("status_bar_height", "dimen", "android")
-                  return if (resource > 0) resources.getDimensionPixelSize(resource) else 0
               }
 
               private fun saveState() {
