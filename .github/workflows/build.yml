@@ -524,7 +524,7 @@ jobs:
                       .setTitle("SNES POCKET - CONTROLLER MAP V2")
                       .setMessage("STEP 1: Select an SNES control below. STEP 2: Press a physical button on the G60S Pro.")
                       .setSingleChoiceItems(labels, -1) { _, which ->
-                          val target = remapActions[labels[which]] ?: return@setItems
+                          val target = remapActions[labels[which]] ?: return@setSingleChoiceItems
                           pendingRemapTarget = target
                           toast("Press the controller button for " + labels[which])
                       }
