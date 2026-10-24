@@ -438,7 +438,6 @@ jobs:
                       leftMargin = dp(12)
                       bottomMargin = dp(12)
                   })
-                  makeGroupMovable(dpad)
 
                   val face = FrameLayout(this)
                   face.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 58),
@@ -453,7 +452,6 @@ jobs:
                       rightMargin = dp(12)
                       bottomMargin = dp(12)
                   })
-                  makeGroupMovable(face)
 
                   val startSelect = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
@@ -464,9 +462,6 @@ jobs:
                   root.addView(startSelect, FrameLayout.LayoutParams(-2, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                       bottomMargin = dp(12)
                   })
-                  makeGroupMovable(startSelect)
-                  root.findViewWithTag<View>("snes-left-shoulder")?.let { makeGroupMovable(it) }
-                  root.findViewWithTag<View>("snes-right-shoulder")?.let { makeGroupMovable(it) }
               }
 
               private fun control(
@@ -548,51 +543,6 @@ jobs:
                       }
                   }
                   return true
-              }
-
-              private fun makeGroupMovable(group: View) {
-                  var downRawX = 0f
-                  var downRawY = 0f
-                  var startX = 0
-                  var startY = 0
-                  group.setOnTouchListener { view, event ->
-                      if (!moveControlsEnabled) return@setOnTouchListener false
-                      val lp = view.layoutParams as? FrameLayout.LayoutParams
-                          ?: return@setOnTouchListener false
-                      when (event.actionMasked) {
-                          MotionEvent.ACTION_DOWN -> {
-                              downRawX = event.rawX
-                              downRawY = event.rawY
-                              startX = lp.leftMargin
-                              startY = lp.topMargin
-                              // Convert gravity-anchored layout to top-left positioning for dragging.
-                              val location = IntArray(2)
-                              val rootLocation = IntArray(2)
-                              view.getLocationOnScreen(location)
-                              root.getLocationOnScreen(rootLocation)
-                              lp.gravity = Gravity.TOP or Gravity.LEFT
-                              lp.leftMargin = location[0] - rootLocation[0]
-                              lp.topMargin = location[1] - rootLocation[1]
-                              view.layoutParams = lp
-                              startX = lp.leftMargin
-                              startY = lp.topMargin
-                              true
-                          }
-                          MotionEvent.ACTION_MOVE -> {
-                              lp.leftMargin = (startX + event.rawX - downRawX).toInt().coerceIn(0, (root.width - view.width).coerceAtLeast(0))
-                              lp.topMargin = (startY + event.rawY - downRawY).toInt().coerceIn(0, (root.height - view.height).coerceAtLeast(0))
-                              lp.rightMargin = 0
-                              lp.bottomMargin = 0
-                              view.layoutParams = lp
-                              true
-                          }
-                          MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                              view.performClick()
-                              true
-                          }
-                          else -> true
-                      }
-                  }
               }
 
               private fun saveState() {
