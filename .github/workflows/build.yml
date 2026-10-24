@@ -196,6 +196,8 @@ jobs:
               private var currentRom: File? = null
               private var fastForwardEnabled = false
               private var pendingRemapTarget: Int? = null
+              private var mappingScreenVisible = false
+              private var mappingOverlay: View? = null
               private val controllerMap = mutableMapOf<Int, Int>()
               private val remapActions = linkedMapOf(
                   "Up" to KeyEvent.KEYCODE_DPAD_UP,
@@ -539,22 +541,66 @@ jobs:
               }
 
               private fun showRemapDialog() {
-                  val labels = remapActions.keys.toTypedArray()
-                  android.app.AlertDialog.Builder(this)
-                      .setTitle("SNES POCKET - CONTROLLER MAP V2")
-                      .setMessage("STEP 1: Select an SNES control below. STEP 2: Press a physical button on the G60S Pro.")
-                      .setSingleChoiceItems(labels, -1) { _, which ->
-                          val target = remapActions[labels[which]] ?: return@setSingleChoiceItems
-                          pendingRemapTarget = target
-                          toast("Press the controller button for " + labels[which])
+                  if (mappingOverlay != null) return
+                  mappingScreenVisible = true
+                  pendingRemapTarget = null
+                  val overlay = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(dp(18), dp(18), dp(18), dp(18))
+                      setBackgroundColor(Color.rgb(30, 20, 43))
+                      isFocusableInTouchMode = true
+                  }
+                  mappingOverlay = overlay
+                  overlay.addView(TextView(this).apply {
+                      text = "CONTROLLER BUTTON MAPPING"
+                      textSize = 22f
+                      typeface = Typeface.DEFAULT_BOLD
+                      setTextColor(accent)
+                      setPadding(0, 0, 0, dp(8))
+                  })
+                  val status = TextView(this).apply {
+                      text = "Choose a control below. Then press the physical G60S Pro button you want to assign."
+                      textSize = 15f
+                      setTextColor(Color.WHITE)
+                      setPadding(0, 0, 0, dp(10))
+                  }
+                  overlay.addView(status)
+                  val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                  remapActions.keys.toList().chunked(2).forEach { rowNames ->
+                      val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                      rowNames.forEach { name ->
+                          val target = remapActions[name]!!
+                          val button = makeButton(name) {
+                              pendingRemapTarget = target
+                              status.text = "Now press the G60S Pro button for: $name"
+                              toast("Press the physical button for $name")
+                          }
+                          row.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                              setMargins(dp(4), dp(4), dp(4), dp(4))
+                          })
                       }
-                      .setNeutralButton("Reset mappings") { _, _ ->
-                          controllerMap.clear()
-                          saveControllerMap()
-                          toast("Controller mappings reset")
-                      }
-                      .setNegativeButton("Close", null)
-                      .show()
+                      list.addView(row)
+                  }
+                  overlay.addView(ScrollView(this).apply { addView(list) },
+                      LinearLayout.LayoutParams(-1, 0, 1f))
+                  val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                  bottom.addView(makeButton("Reset mappings") {
+                      controllerMap.clear()
+                      saveControllerMap()
+                      status.text = "Mappings reset. Choose a control, then press a controller button."
+                  }, LinearLayout.LayoutParams(0, dp(48), 1f))
+                  bottom.addView(makeButton("Done") { closeRemapScreen() },
+                      LinearLayout.LayoutParams(0, dp(48), 1f))
+                  overlay.addView(bottom)
+                  root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+                  overlay.requestFocus()
+              }
+
+              private fun closeRemapScreen() {
+                  mappingOverlay?.let { root.removeView(it) }
+                  mappingOverlay = null
+                  mappingScreenVisible = false
+                  pendingRemapTarget = null
               }
 
               private val capturedRemapKeys = mutableSetOf<Int>()
@@ -562,18 +608,30 @@ jobs:
               override fun dispatchKeyEvent(event: KeyEvent): Boolean {
                   val keyCode = event.keyCode
                   val view = retroView
-                  if (pendingRemapTarget != null && event.action == KeyEvent.ACTION_DOWN &&
-                      keyCode != KeyEvent.KEYCODE_BACK) {
-                      val target = pendingRemapTarget!!
-                      controllerMap[keyCode] = target
-                      pendingRemapTarget = null
-                      capturedRemapKeys.add(keyCode)
-                      saveControllerMap()
-                      val label = remapActions.entries.firstOrNull { it.value == target }?.key ?: "button"
-                      toast("$label mapped to controller key $keyCode")
-                      return true
+                  if (mappingScreenVisible) {
+                      if (pendingRemapTarget != null && event.action == KeyEvent.ACTION_DOWN &&
+                          keyCode != KeyEvent.KEYCODE_BACK) {
+                          val target = pendingRemapTarget!!
+                          controllerMap[keyCode] = target
+                          pendingRemapTarget = null
+                          capturedRemapKeys.add(keyCode)
+                          saveControllerMap()
+                          val label = remapActions.entries.firstOrNull { it.value == target }?.key ?: "button"
+                          (mappingOverlay as? LinearLayout)?.let { overlay ->
+                              (overlay.getChildAt(1) as? TextView)?.text =
+                                  "$label mapped. Choose another control or press Done."
+                          }
+                          toast("$label mapped")
+                          return true
+                      }
+                      if (event.action == KeyEvent.ACTION_UP && capturedRemapKeys.remove(keyCode)) return true
+                      if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                          closeRemapScreen()
+                          return true
+                      }
+                      // Allow TV remote navigation to operate the visible mapping list.
+                      return super.dispatchKeyEvent(event)
                   }
-                  if (event.action == KeyEvent.ACTION_UP && capturedRemapKeys.remove(keyCode)) return true
                   if (view != null && keyCode != KeyEvent.KEYCODE_BACK) {
                       view.sendKeyEvent(event.action, controllerMap[keyCode] ?: keyCode)
                       return true
