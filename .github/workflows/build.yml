@@ -425,14 +425,16 @@ jobs:
                   val dpad = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       gravity = Gravity.CENTER
+                      clipChildren = false
+                      clipToPadding = false
                   }
-                  val dpadTop = LinearLayout(this).apply { gravity = Gravity.CENTER }
+                  val dpadTop = LinearLayout(this).apply { gravity = Gravity.CENTER; clipChildren = false; clipToPadding = false }
                   dpadTop.addView(control("▲", KeyEvent.KEYCODE_DPAD_UP, 50))
-                  val dpadMiddle = LinearLayout(this).apply { gravity = Gravity.CENTER }
+                  val dpadMiddle = LinearLayout(this).apply { gravity = Gravity.CENTER; clipChildren = false; clipToPadding = false }
                   dpadMiddle.addView(control("◀", KeyEvent.KEYCODE_DPAD_LEFT, 50))
                   dpadMiddle.addView(control("", -1, 50, false))
                   dpadMiddle.addView(control("▶", KeyEvent.KEYCODE_DPAD_RIGHT, 50))
-                  val dpadBottom = LinearLayout(this).apply { gravity = Gravity.CENTER }
+                  val dpadBottom = LinearLayout(this).apply { gravity = Gravity.CENTER; clipChildren = false; clipToPadding = false }
                   dpadBottom.addView(control("▼", KeyEvent.KEYCODE_DPAD_DOWN, 50))
                   dpad.addView(dpadTop)
                   dpad.addView(dpadMiddle)
@@ -442,7 +444,7 @@ jobs:
                       bottomMargin = dp(8)
                   })
 
-                  val face = FrameLayout(this)
+                  val face = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
                   face.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 50),
                       FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
                   face.addView(control("Y", KeyEvent.KEYCODE_BUTTON_Y, 50),
@@ -459,6 +461,8 @@ jobs:
                   val startSelect = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER
+                      clipChildren = false
+                      clipToPadding = false
                   }
                   startSelect.addView(control("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 68, true, 38))
                   startSelect.addView(control("START", KeyEvent.KEYCODE_BUTTON_START, 68, true, 38))
