@@ -502,6 +502,7 @@ jobs:
                   setTextColor(if (enabled) Color.WHITE else Color.TRANSPARENT)
                   setBackgroundColor(if (enabled) panel else Color.TRANSPARENT)
                   isClickable = enabled
+                  isEnabled = enabled
                   isFocusable = false
                   elevation = if (enabled) dp(3).toFloat() else 0f
                   val lp = LinearLayout.LayoutParams(dp(widthDp), dp(heightDp))
