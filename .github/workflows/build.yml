@@ -378,7 +378,7 @@ jobs:
                   val top = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER_VERTICAL
-                      setBackgroundColor(0xAA2A1841.toInt())
+                      setBackgroundColor(0x882A1841.toInt())
                   }
                   top.addView(makeButton("‹ Library") { exitGame() })
                   top.addView(makeButton("Map") { showRemapDialog() })
@@ -389,64 +389,66 @@ jobs:
                       fastForwardEnabled = !fastForwardEnabled
                       retroView?.frameSpeed = if (fastForwardEnabled) 3 else 1
                       ffButton.text = if (fastForwardEnabled) "FF 3×" else "FF 1×"
-                      toast(if (fastForwardEnabled) "Fast forward: 3×" else "Normal speed: 1×")
                   }
                   top.addView(ffButton)
                   root.addView(top, FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP))
 
-                  // Larger touch targets and a proper cross-shaped D-pad.
-                  // Each control sends its own DOWN/UP events, allowing multi-touch combos.
-                  val bottom = LinearLayout(this).apply {
-                      orientation = LinearLayout.HORIZONTAL
-                      gravity = Gravity.CENTER
-                      setBackgroundColor(0xAA171020.toInt())
-                      setPadding(dp(6), dp(8), dp(6), dp(8))
-                  }
-                  val left = LinearLayout(this).apply {
+                  // SNES9x-inspired arrangement: shoulder buttons high, D-pad left,
+                  // ABXY diamond on the right, and Start/Select near the bottom center.
+                  root.addView(control("L", KeyEvent.KEYCODE_BUTTON_L1, 76, true, 44),
+                      FrameLayout.LayoutParams(dp(76), dp(44), Gravity.TOP or Gravity.LEFT).apply {
+                          leftMargin = dp(12)
+                          topMargin = dp(52)
+                      })
+                  root.addView(control("R", KeyEvent.KEYCODE_BUTTON_R1, 76, true, 44),
+                      FrameLayout.LayoutParams(dp(76), dp(44), Gravity.TOP or Gravity.RIGHT).apply {
+                          rightMargin = dp(12)
+                          topMargin = dp(52)
+                      })
+
+                  val dpad = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       gravity = Gravity.CENTER
                   }
                   val dpadTop = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  dpadTop.addView(control("▲", KeyEvent.KEYCODE_DPAD_UP, 62))
+                  dpadTop.addView(control("▲", KeyEvent.KEYCODE_DPAD_UP, 58))
                   val dpadMiddle = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  dpadMiddle.addView(control("◀", KeyEvent.KEYCODE_DPAD_LEFT, 62))
-                  dpadMiddle.addView(control("", -1, 62, false))
-                  dpadMiddle.addView(control("▶", KeyEvent.KEYCODE_DPAD_RIGHT, 62))
+                  dpadMiddle.addView(control("◀", KeyEvent.KEYCODE_DPAD_LEFT, 58))
+                  dpadMiddle.addView(control("", -1, 58, false))
+                  dpadMiddle.addView(control("▶", KeyEvent.KEYCODE_DPAD_RIGHT, 58))
                   val dpadBottom = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  dpadBottom.addView(control("▼", KeyEvent.KEYCODE_DPAD_DOWN, 62))
-                  left.addView(dpadTop)
-                  left.addView(dpadMiddle)
-                  left.addView(dpadBottom)
-                  bottom.addView(left, LinearLayout.LayoutParams(0, -2, 1.15f))
+                  dpadBottom.addView(control("▼", KeyEvent.KEYCODE_DPAD_DOWN, 58))
+                  dpad.addView(dpadTop)
+                  dpad.addView(dpadMiddle)
+                  dpad.addView(dpadBottom)
+                  root.addView(dpad, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.LEFT).apply {
+                      leftMargin = dp(12)
+                      bottomMargin = dp(12)
+                  })
 
-                  val center = LinearLayout(this).apply {
-                      orientation = LinearLayout.VERTICAL
+                  val face = FrameLayout(this)
+                  face.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 58),
+                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+                  face.addView(control("Y", KeyEvent.KEYCODE_BUTTON_Y, 58),
+                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.CENTER_VERTICAL or Gravity.LEFT))
+                  face.addView(control("A", KeyEvent.KEYCODE_BUTTON_A, 58),
+                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.CENTER_VERTICAL or Gravity.RIGHT))
+                  face.addView(control("B", KeyEvent.KEYCODE_BUTTON_B, 58),
+                      FrameLayout.LayoutParams(dp(58), dp(58), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+                  root.addView(face, FrameLayout.LayoutParams(dp(190), dp(190), Gravity.BOTTOM or Gravity.RIGHT).apply {
+                      rightMargin = dp(12)
+                      bottomMargin = dp(12)
+                  })
+
+                  val startSelect = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER
                   }
-                  val startRow = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  startRow.addView(control("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 76, true, 48))
-                  startRow.addView(control("START", KeyEvent.KEYCODE_BUTTON_START, 76, true, 48))
-                  center.addView(startRow)
-                  bottom.addView(center, LinearLayout.LayoutParams(0, -2, 1f))
-
-                  val buttons = LinearLayout(this).apply {
-                      orientation = LinearLayout.VERTICAL
-                      gravity = Gravity.CENTER
-                  }
-                  val lr = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  lr.addView(control("L", KeyEvent.KEYCODE_BUTTON_L1, 62))
-                  lr.addView(control("R", KeyEvent.KEYCODE_BUTTON_R1, 62))
-                  buttons.addView(lr)
-                  val xy = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  xy.addView(control("X", KeyEvent.KEYCODE_BUTTON_X, 62))
-                  xy.addView(control("Y", KeyEvent.KEYCODE_BUTTON_Y, 62))
-                  val ab = LinearLayout(this).apply { gravity = Gravity.CENTER }
-                  ab.addView(control("B", KeyEvent.KEYCODE_BUTTON_B, 62))
-                  ab.addView(control("A", KeyEvent.KEYCODE_BUTTON_A, 62))
-                  buttons.addView(xy)
-                  buttons.addView(ab)
-                  bottom.addView(buttons, LinearLayout.LayoutParams(0, -2, 1.15f))
-                  root.addView(bottom, FrameLayout.LayoutParams(-1, dp(220), Gravity.BOTTOM))
+                  startSelect.addView(control("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 78, true, 42))
+                  startSelect.addView(control("START", KeyEvent.KEYCODE_BUTTON_START, 78, true, 42))
+                  root.addView(startSelect, FrameLayout.LayoutParams(-2, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                      bottomMargin = dp(12)
+                  })
               }
 
               private fun control(
