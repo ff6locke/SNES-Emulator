@@ -210,6 +210,7 @@ jobs:
               // Keys held by the current one-finger slide-combo gesture.
               private val controlKeys = mutableMapOf<View, Int>()
               private val singleFingerHeldKeys = mutableSetOf<Int>()
+              private val gapTouchHeldKeys = mutableSetOf<Int>()
               private val remapActions = linkedMapOf(
                   "Up" to KeyEvent.KEYCODE_DPAD_UP,
                   "Down" to KeyEvent.KEYCODE_DPAD_DOWN,
@@ -466,9 +467,6 @@ jobs:
                       FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER_VERTICAL or Gravity.RIGHT).apply { rightMargin = dp(0) })
                   face.addView(control("B", KeyEvent.KEYCODE_BUTTON_B, 50),
                       FrameLayout.LayoutParams(dp(50), dp(50), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
-                  // Dedicated one-finger combo zone: one touch presses X and B together.
-                  face.addView(comboControl("X+B", KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_B),
-                      FrameLayout.LayoutParams(dp(42), dp(26), Gravity.CENTER))
                   root.addView(face, FrameLayout.LayoutParams(dp(120), dp(120), Gravity.BOTTOM or Gravity.RIGHT).apply {
                       rightMargin = dp(8)
                       bottomMargin = dp(8)
@@ -485,38 +483,51 @@ jobs:
                   root.addView(startSelect, FrameLayout.LayoutParams(-2, dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                       bottomMargin = dp(8)
                   })
-              }
 
-              private fun comboControl(label: String, firstKey: Int, secondKey: Int): TextView = TextView(this).apply {
-                  text = label
-                  textSize = 11f
-                  gravity = Gravity.CENTER
-                  setTextColor(Color.WHITE)
-                  setBackgroundColor(0xFF68458A.toInt())
-                  isClickable = true
-                  isFocusable = false
-                  elevation = dp(5).toFloat()
-                  setOnTouchListener { view, event ->
+                  // If one finger lands in the gap between two normal controls, press the
+                  // two nearest nearby controls together. Direct button touches still use control().
+                  root.isClickable = true
+                  root.setOnTouchListener { _, event ->
                       if (moveControlsEnabled) return@setOnTouchListener false
-                      val v = retroView
                       when (event.actionMasked) {
                           MotionEvent.ACTION_DOWN -> {
-                              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) view.requestUnbufferedDispatch(event)
-                              view.setBackgroundColor(Color.rgb(125, 88, 165))
-                              if (v != null) {
-                                  v.sendKeyEvent(KeyEvent.ACTION_DOWN, firstKey)
-                                  v.sendKeyEvent(KeyEvent.ACTION_DOWN, secondKey)
+                              val x = event.rawX
+                              val y = event.rawY
+                              val nearby = controlKeys.entries.mapNotNull { (button, key) ->
+                                  if (key < 0 || !button.isShown || !button.isEnabled || button.width == 0 || button.height == 0) return@mapNotNull null
+                                  val location = IntArray(2)
+                                  button.getLocationOnScreen(location)
+                                  val left = location[0].toFloat()
+                                  val top = location[1].toFloat()
+                                  val right = left + button.width
+                                  val bottom = top + button.height
+                                  val dx = when { x < left -> left - x; x > right -> x - right; else -> 0f }
+                                  val dy = when { y < top -> top - y; y > bottom -> y - bottom; else -> 0f }
+                                  val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                                  if (distance <= dp(16)) Triple(button, key, distance) else null
+                              }.sortedBy { it.third }.take(2)
+                              if (nearby.size < 2) return@setOnTouchListener false
+                              gapTouchHeldKeys.clear()
+                              val v = retroView
+                              nearby.forEach { (button, key, _) ->
+                                  if (gapTouchHeldKeys.add(key)) {
+                                      button.setBackgroundColor(Color.rgb(125, 88, 165))
+                                      v?.sendKeyEvent(KeyEvent.ACTION_DOWN, key)
+                                  }
                               }
+                              true
                           }
                           MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                              view.setBackgroundColor(0xFF68458A.toInt())
-                              if (v != null) {
-                                  v.sendKeyEvent(KeyEvent.ACTION_UP, secondKey)
-                                  v.sendKeyEvent(KeyEvent.ACTION_UP, firstKey)
-                              }
+                              if (gapTouchHeldKeys.isEmpty()) return@setOnTouchListener false
+                              val v = retroView
+                              controlKeys.forEach { (button, key) -> if (gapTouchHeldKeys.contains(key)) button.setBackgroundColor(panel) }
+                              gapTouchHeldKeys.toList().forEach { v?.sendKeyEvent(KeyEvent.ACTION_UP, it) }
+                              gapTouchHeldKeys.clear()
+                              true
                           }
+                          MotionEvent.ACTION_MOVE -> gapTouchHeldKeys.isNotEmpty()
+                          else -> gapTouchHeldKeys.isNotEmpty()
                       }
-                      true
                   }
               }
 
