@@ -389,9 +389,12 @@ jobs:
                       currentRom = game
                       fastForwardEnabled = false
                       root = FrameLayout(this).apply {
-                      setBackgroundColor(Color.BLACK)
-                      setMotionEventSplittingEnabled(true)
-                  }
+                          setBackgroundColor(Color.BLACK)
+                          // Allow individually moved virtual buttons to render beyond their original group bounds.
+                          clipChildren = false
+                          clipToPadding = false
+                          setMotionEventSplittingEnabled(true)
+                      }
                       val view = GLRetroView(this, data)
                       retroView = view
                       lifecycle.addObserver(view)
