@@ -207,10 +207,10 @@ jobs:
               private var gameMenuOverlay: View? = null
               private var gameMenuVisible = false
               private val controllerMap = mutableMapOf<Int, Int>()
-              // Keys held by the current one-finger slide-combo gesture.
+              // Virtual controls can overlap their hit areas near edges so one touch can activate both.
               private val controlKeys = mutableMapOf<View, Int>()
-              private val singleFingerHeldKeys = mutableSetOf<Int>()
-              private val gapTouchHeldKeys = mutableSetOf<Int>()
+              private val heldKeysByPointer = mutableMapOf<Int, MutableSet<Int>>()
+              private val keyHoldCounts = mutableMapOf<Int, Int>()
               private val remapActions = linkedMapOf(
                   "Up" to KeyEvent.KEYCODE_DPAD_UP,
                   "Down" to KeyEvent.KEYCODE_DPAD_DOWN,
@@ -484,51 +484,6 @@ jobs:
                       bottomMargin = dp(8)
                   })
 
-                  // If one finger lands in the gap between two normal controls, press the
-                  // two nearest nearby controls together. Direct button touches still use control().
-                  root.isClickable = true
-                  root.setOnTouchListener { _, event ->
-                      if (moveControlsEnabled) return@setOnTouchListener false
-                      when (event.actionMasked) {
-                          MotionEvent.ACTION_DOWN -> {
-                              val x = event.rawX
-                              val y = event.rawY
-                              val nearby = controlKeys.entries.mapNotNull { (button, key) ->
-                                  if (key < 0 || !button.isShown || !button.isEnabled || button.width == 0 || button.height == 0) return@mapNotNull null
-                                  val location = IntArray(2)
-                                  button.getLocationOnScreen(location)
-                                  val left = location[0].toFloat()
-                                  val top = location[1].toFloat()
-                                  val right = left + button.width
-                                  val bottom = top + button.height
-                                  val dx = when { x < left -> left - x; x > right -> x - right; else -> 0f }
-                                  val dy = when { y < top -> top - y; y > bottom -> y - bottom; else -> 0f }
-                                  val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-                                  if (distance <= dp(16)) Triple(button, key, distance) else null
-                              }.sortedBy { it.third }.take(2)
-                              if (nearby.size < 2) return@setOnTouchListener false
-                              gapTouchHeldKeys.clear()
-                              val v = retroView
-                              nearby.forEach { (button, key, _) ->
-                                  if (gapTouchHeldKeys.add(key)) {
-                                      button.setBackgroundColor(Color.rgb(125, 88, 165))
-                                      v?.sendKeyEvent(KeyEvent.ACTION_DOWN, key)
-                                  }
-                              }
-                              true
-                          }
-                          MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                              if (gapTouchHeldKeys.isEmpty()) return@setOnTouchListener false
-                              val v = retroView
-                              controlKeys.forEach { (button, key) -> if (gapTouchHeldKeys.contains(key)) button.setBackgroundColor(panel) }
-                              gapTouchHeldKeys.toList().forEach { v?.sendKeyEvent(KeyEvent.ACTION_UP, it) }
-                              gapTouchHeldKeys.clear()
-                              true
-                          }
-                          MotionEvent.ACTION_MOVE -> gapTouchHeldKeys.isNotEmpty()
-                          else -> gapTouchHeldKeys.isNotEmpty()
-                      }
-                  }
               }
 
               private fun control(
@@ -559,51 +514,72 @@ jobs:
                       val v = retroView
                       if (moveControlsEnabled) return@setOnTouchListener handleMoveTouch(view, event)
                       when (event.actionMasked) {
-                          MotionEvent.ACTION_DOWN -> {
-                              // Request unbuffered touch delivery where supported to reduce
-                              // latency on the on-screen SNES controls.
+                          MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                              // Touching the narrow space between adjacent controls presses both;
+                              // no sliding is required. Keep separate held-key sets per finger.
                               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                   view.requestUnbufferedDispatch(event)
                               }
-                              singleFingerHeldKeys.clear()
-                              singleFingerHeldKeys.add(key)
-                              view.setBackgroundColor(Color.rgb(125, 88, 165))
-                              if (v != null) v.sendKeyEvent(KeyEvent.ACTION_DOWN, key)
+                              val pointerIndex = event.actionIndex
+                              val pointerId = event.getPointerId(pointerIndex)
+                              val x = event.getX(pointerIndex) + view.left - view.scrollX
+                              val y = event.getY(pointerIndex) + view.top - view.scrollY
+                              val rawX = event.rawX
+                              val rawY = event.rawY
+                              val nearby = findControlsNearScreenPoint(rawX, rawY, dp(20))
+                              val keys = (nearby.map { it.second } + key).toSet()
+                              heldKeysByPointer[pointerId] = keys.toMutableSet()
+                              keys.forEach { heldKey ->
+                                  controlKeys.entries.firstOrNull { it.value == heldKey }?.key?.setBackgroundColor(Color.rgb(125, 88, 165))
+                                  val count = keyHoldCounts[heldKey] ?: 0
+                                  keyHoldCounts[heldKey] = count + 1
+                                  if (count == 0) v?.sendKeyEvent(KeyEvent.ACTION_DOWN, heldKey)
+                              }
                           }
                           MotionEvent.ACTION_MOVE -> {
-                              // A single finger can slide from one control to another while
-                              // keeping the previously touched controls held (e.g. X then B).
-                              val hit = findControlAtScreenPoint(event.rawX, event.rawY)
-                              val hitKey = hit?.let { controlKeys[it] }
-                              if (hitKey != null && singleFingerHeldKeys.add(hitKey)) {
-                                  hit.setBackgroundColor(Color.rgb(125, 88, 165))
-                                  if (v != null) v.sendKeyEvent(KeyEvent.ACTION_DOWN, hitKey)
-                              }
+                              // Intentionally do not change pressed buttons while a finger slides.
                           }
-                          MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                              controlKeys.forEach { (button, buttonKey) ->
-                                  if (singleFingerHeldKeys.contains(buttonKey)) {
-                                      button.setBackgroundColor(panel)
+                          MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                              val pointerId = if (event.actionMasked == MotionEvent.ACTION_CANCEL) -1 else event.getPointerId(event.actionIndex)
+                              val ids = if (pointerId == -1) heldKeysByPointer.keys.toList() else listOf(pointerId)
+                              ids.forEach { id ->
+                                  val keys = heldKeysByPointer.remove(id) ?: return@forEach
+                                  keys.forEach { heldKey ->
+                                      val count = (keyHoldCounts[heldKey] ?: 1) - 1
+                                      if (count <= 0) {
+                                          keyHoldCounts.remove(heldKey)
+                                          v?.sendKeyEvent(KeyEvent.ACTION_UP, heldKey)
+                                          controlKeys.entries.firstOrNull { it.value == heldKey }?.key?.setBackgroundColor(panel)
+                                      } else keyHoldCounts[heldKey] = count
                                   }
                               }
-                              singleFingerHeldKeys.toList().forEach { heldKey ->
-                                  if (v != null) v.sendKeyEvent(KeyEvent.ACTION_UP, heldKey)
-                              }
-                              singleFingerHeldKeys.clear()
                           }
                       }
                       true
                   }
               }
 
-              private fun findControlAtScreenPoint(rawX: Float, rawY: Float): View? {
-                  // Check the topmost on-screen control first, so overlapping controls behave predictably.
-                  return controlKeys.keys.toList().asReversed().firstOrNull { button ->
-                      if (!button.isShown || !button.isEnabled) return@firstOrNull false
+              private fun findControlsNearScreenPoint(rawX: Float, rawY: Float, tolerancePx: Int): List<Pair<View, Int>> {
+                  return controlKeys.entries.mapNotNull { (button, key) ->
+                      if (key < 0 || !button.isShown || !button.isEnabled || button.width == 0 || button.height == 0) return@mapNotNull null
                       val location = IntArray(2)
                       button.getLocationOnScreen(location)
-                      rawX >= location[0] && rawX < location[0] + button.width &&
-                          rawY >= location[1] && rawY < location[1] + button.height
+                      val left = location[0].toFloat()
+                      val top = location[1].toFloat()
+                      val right = left + button.width
+                      val bottom = top + button.height
+                      val dx = when { rawX < left -> left - rawX; rawX > right -> rawX - right; else -> 0f }
+                      val dy = when { rawY < top -> top - rawY; rawY > bottom -> rawY - bottom; else -> 0f }
+                      val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                      if (distance <= tolerancePx) button to key else null
+                  }.sortedBy { (button, _) ->
+                      val location = IntArray(2)
+                      button.getLocationOnScreen(location)
+                      val cx = location[0] + button.width / 2f
+                      val cy = location[1] + button.height / 2f
+                      val dx = rawX - cx
+                      val dy = rawY - cy
+                      dx * dx + dy * dy
                   }
               }
 
