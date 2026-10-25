@@ -237,7 +237,12 @@ jobs:
               private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
               private fun showLibrary() {
-                  root = FrameLayout(this).apply { setBackgroundColor(purple) }
+                  root = FrameLayout(this).apply {
+                      setBackgroundColor(purple)
+                      // Keep custom-positioned controls visible when moved beyond their original group.
+                      clipChildren = false
+                      clipToPadding = false
+                  }
                   val page = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       setPadding(dp(18), dp(18), dp(18), dp(18))
