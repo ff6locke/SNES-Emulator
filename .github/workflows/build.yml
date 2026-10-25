@@ -522,10 +522,10 @@ jobs:
                               }
                               val pointerIndex = event.actionIndex
                               val pointerId = event.getPointerId(pointerIndex)
-                              val x = event.getX(pointerIndex) + view.left - view.scrollX
-                              val y = event.getY(pointerIndex) + view.top - view.scrollY
-                              val rawX = event.rawX
-                              val rawY = event.rawY
+                              val viewLocation = IntArray(2)
+                              view.getLocationOnScreen(viewLocation)
+                              val rawX = viewLocation[0] + event.getX(pointerIndex)
+                              val rawY = viewLocation[1] + event.getY(pointerIndex)
                               val nearby = findControlsNearScreenPoint(rawX, rawY, dp(20))
                               val keys = (nearby.map { it.second } + key).toSet()
                               heldKeysByPointer[pointerId] = keys.toMutableSet()
