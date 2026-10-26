@@ -528,6 +528,7 @@ jobs:
                               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                   view.requestUnbufferedDispatch(event)
                               }
+                              view.parent?.requestDisallowInterceptTouchEvent(true)
                               val pointerIndex = event.actionIndex
                               val pointerId = event.getPointerId(pointerIndex)
                               val viewLocation = IntArray(2)
@@ -548,8 +549,14 @@ jobs:
                               // Intentionally do not change pressed buttons while a finger slides.
                           }
                           MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
-                              val pointerId = if (event.actionMasked == MotionEvent.ACTION_CANCEL) -1 else event.getPointerId(event.actionIndex)
-                              val ids = if (pointerId == -1) heldKeysByPointer.keys.toList() else listOf(pointerId)
+                              // A child can receive ACTION_CANCEL when another finger targets a
+                              // different button. Release only pointers delivered in this event,
+                              // not every finger currently holding a control.
+                              val ids = if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                                  (0 until event.pointerCount).map { event.getPointerId(it) }
+                              } else {
+                                  listOf(event.getPointerId(event.actionIndex))
+                              }
                               ids.forEach { id ->
                                   val keys = heldKeysByPointer.remove(id) ?: return@forEach
                                   keys.forEach { heldKey ->
@@ -596,6 +603,7 @@ jobs:
               private fun handleMoveTouch(touchedView: View, event: MotionEvent): Boolean {
                   when (event.actionMasked) {
                       MotionEvent.ACTION_DOWN -> {
+                          touchedView.parent?.requestDisallowInterceptTouchEvent(true)
                           draggedControlGroup = touchedView
                           dragDownRawX = event.rawX
                           dragDownRawY = event.rawY
@@ -609,7 +617,8 @@ jobs:
                           }
                       }
                       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                          draggedControlGroup = null
+                          touchedView.parent?.requestDisallowInterceptTouchEvent(false)
+                          if (draggedControlGroup === touchedView) draggedControlGroup = null
                       }
                   }
                   return true
